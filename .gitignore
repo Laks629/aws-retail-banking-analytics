@@ -1,0 +1,28 @@
+# Data (large / regenerated locally)
+data/source/
+data/output/
+*.csv.gz
+
+# Local config & build artifacts
+config.env
+infra/.build/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Never commit credentials
+.aws/
+*.pem

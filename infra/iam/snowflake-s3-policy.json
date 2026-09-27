@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {"Sid": "ListLake", "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+     "Resource": "arn:aws:s3:::__BUCKET__",
+     "Condition": {"StringLike": {"s3:prefix": ["__PREFIX__/*"]}}},
+    {"Sid": "ReadCuratedAndDQ", "Effect": "Allow", "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+     "Resource": ["arn:aws:s3:::__BUCKET__/__PREFIX__/curated/*",
+                  "arn:aws:s3:::__BUCKET__/__PREFIX__/quarantine/*",
+                  "arn:aws:s3:::__BUCKET__/__PREFIX__/dq-results/*",
+                  "arn:aws:s3:::__BUCKET__/__PREFIX__/exports/*"]},
+    {"Sid": "UnloadMartsForTableau", "Effect": "Allow", "Action": ["s3:PutObject", "s3:DeleteObject"],
+     "Resource": "arn:aws:s3:::__BUCKET__/__PREFIX__/exports/*"}
+  ]
+}

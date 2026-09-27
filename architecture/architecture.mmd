@@ -1,0 +1,32 @@
+flowchart LR
+    subgraph Ingest
+        P[PaySim-derived batches<br/>6.3M rows, gzip CSV] -->|aws s3 sync| RAW
+        K[Kinesis producer]:::stretch -.-> KDS[Kinesis]:::stretch -.-> L[Lambda]:::stretch -.-> RAW
+    end
+    subgraph "AWS S3 data lake"
+        RAW[(raw/ immutable)]
+        Q[(quarantine/)]
+        C[(curated/ Parquet<br/>year/month partitions)]
+        DQ[(dq-results/)]
+    end
+    subgraph "Step Functions orchestration"
+        G[Glue PySpark ETL<br/>standardise, validate, dedupe, enrich] --> GDQ[Glue Data Quality<br/>DQDL + quality gate]
+        GDQ --> CR[Glue crawler] --> AV[Athena validation] --> SNS[SNS alert]
+    end
+    RAW --> G --> Q
+    G --> C
+    GDQ --> DQ
+    C --> CAT[Glue Data Catalog + Athena<br/>lake exploration]
+    subgraph "Snowflake (governed consumption)"
+        ST[Storage integration<br/>+ external stage] --> CU[CURATED star schema<br/>COMMENT business definitions]
+        CU --> GOV[Tags, masking,<br/>row access policies, RBAC]
+        CU --> DMF[Data Metric Functions<br/>+ DQ scorecard, reconciliation]
+        GOV --> AN[Secure self-service marts]
+        DMF --> AN
+    end
+    C --> ST
+    Q --> ST
+    DQ --> ST
+    AN --> T[Tableau dashboards]
+    G -.logs, metrics.-> CW[CloudWatch alarms]
+    classDef stretch stroke-dasharray: 5 5

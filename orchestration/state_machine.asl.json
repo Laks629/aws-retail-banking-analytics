@@ -1,0 +1,89 @@
+{
+  "Comment": "Retail banking lake: Glue/PySpark ETL + DQ gate -> Data Catalog crawler -> Athena validation -> SNS",
+  "StartAt": "RunGlueETL",
+  "States": {
+    "RunGlueETL": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Parameters": { "JobName": "__GLUE_JOB__" },
+      "ResultSelector": { "JobRunId.$": "$.Id", "ExecutionTime.$": "$.ExecutionTime" },
+      "ResultPath": "$.glue",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" }],
+      "Next": "StartCrawler"
+    },
+    "StartCrawler": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:startCrawler",
+      "Parameters": { "Name": "__CRAWLER__" },
+      "ResultPath": null,
+      "Retry": [{ "ErrorEquals": ["Glue.CrawlerRunningException"], "IntervalSeconds": 30, "MaxAttempts": 10, "BackoffRate": 1.0 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" }],
+      "Next": "WaitForCrawler"
+    },
+    "WaitForCrawler": { "Type": "Wait", "Seconds": 30, "Next": "GetCrawlerState" },
+    "GetCrawlerState": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:glue:getCrawler",
+      "Parameters": { "Name": "__CRAWLER__" },
+      "ResultSelector": { "State.$": "$.Crawler.State" },
+      "ResultPath": "$.crawler",
+      "Next": "CrawlerFinished?"
+    },
+    "CrawlerFinished?": {
+      "Type": "Choice",
+      "Choices": [{ "Variable": "$.crawler.State", "StringEquals": "READY", "Next": "ValidateInAthena" }],
+      "Default": "WaitForCrawler"
+    },
+    "ValidateInAthena": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+      "Parameters": {
+        "QueryString": "SELECT pipeline_status, CAST(raw_rows AS varchar), CAST(quarantine_rate AS varchar), CAST(raw_dq_score AS varchar), CAST(curated_dq_score AS varchar) FROM dq_run_summary ORDER BY run_ts DESC LIMIT 1",
+        "QueryExecutionContext": { "Database": "__DATABASE__" },
+        "WorkGroup": "__WORKGROUP__"
+      },
+      "ResultSelector": { "QueryExecutionId.$": "$.QueryExecution.QueryExecutionId" },
+      "ResultPath": "$.athena",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" }],
+      "Next": "GetRunSummary"
+    },
+    "GetRunSummary": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:getQueryResults",
+      "Parameters": { "QueryExecutionId.$": "$.athena.QueryExecutionId", "MaxResults": 2 },
+      "ResultSelector": {
+        "status.$": "$.ResultSet.Rows[1].Data[0].VarCharValue",
+        "raw_rows.$": "$.ResultSet.Rows[1].Data[1].VarCharValue",
+        "quarantine_rate.$": "$.ResultSet.Rows[1].Data[2].VarCharValue",
+        "raw_dq_score.$": "$.ResultSet.Rows[1].Data[3].VarCharValue",
+        "curated_dq_score.$": "$.ResultSet.Rows[1].Data[4].VarCharValue"
+      },
+      "ResultPath": "$.summary",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" }],
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "__TOPIC_ARN__",
+        "Subject": "Retail bank pipeline succeeded",
+        "Message.$": "States.Format('Status: {} | raw rows: {} | quarantine rate: {} | raw DQ score: {} | curated DQ score: {}', $.summary.status, $.summary.raw_rows, $.summary.quarantine_rate, $.summary.raw_dq_score, $.summary.curated_dq_score)"
+      },
+      "ResultPath": null,
+      "End": true
+    },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "__TOPIC_ARN__",
+        "Subject": "Retail bank pipeline FAILED",
+        "Message.$": "States.JsonToString($.error)"
+      },
+      "ResultPath": null,
+      "Next": "PipelineFailed"
+    },
+    "PipelineFailed": { "Type": "Fail", "Error": "PipelineFailed", "Cause": "See SNS alert / Glue logs in CloudWatch" }
+  }
+}

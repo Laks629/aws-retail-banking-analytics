@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {"Sid": "GlueJob", "Effect": "Allow",
+     "Action": ["glue:StartJobRun", "glue:GetJobRun", "glue:GetJobRuns", "glue:BatchStopJobRun"],
+     "Resource": "arn:aws:glue:__REGION__:__ACCOUNT_ID__:job/__GLUE_JOB__"},
+    {"Sid": "GlueCrawler", "Effect": "Allow", "Action": ["glue:StartCrawler", "glue:GetCrawler"],
+     "Resource": "arn:aws:glue:__REGION__:__ACCOUNT_ID__:crawler/__CRAWLER__"},
+    {"Sid": "GlueCatalogForAthena", "Effect": "Allow",
+     "Action": ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable", "glue:GetTables", "glue:GetPartition", "glue:GetPartitions"],
+     "Resource": ["arn:aws:glue:__REGION__:__ACCOUNT_ID__:catalog",
+                  "arn:aws:glue:__REGION__:__ACCOUNT_ID__:database/__DATABASE__",
+                  "arn:aws:glue:__REGION__:__ACCOUNT_ID__:table/__DATABASE__/*"]},
+    {"Sid": "Athena", "Effect": "Allow",
+     "Action": ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults", "athena:StopQueryExecution", "athena:GetWorkGroup"],
+     "Resource": "arn:aws:athena:__REGION__:__ACCOUNT_ID__:workgroup/__WORKGROUP__"},
+    {"Sid": "AthenaS3", "Effect": "Allow",
+     "Action": ["s3:GetBucketLocation", "s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
+     "Resource": ["arn:aws:s3:::__BUCKET__", "arn:aws:s3:::__BUCKET__/*"]},
+    {"Sid": "LakeFormationPassthrough", "Effect": "Allow", "Action": ["lakeformation:GetDataAccess"], "Resource": "*"},
+    {"Sid": "Alerts", "Effect": "Allow", "Action": ["sns:Publish"], "Resource": "__TOPIC_ARN__"}
+  ]
+}

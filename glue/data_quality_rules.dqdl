@@ -1,0 +1,14 @@
+Rules = [
+    RowCount > 1000,
+    IsComplete "transaction_id",
+    IsUnique "transaction_id",
+    IsComplete "source_account_id",
+    IsComplete "transaction_ts",
+    IsComplete "channel",
+    ColumnValues "amount" > 0,
+    ColumnValues "transaction_type" in ["DEPOSIT", "WITHDRAWAL", "PAYMENT", "TRANSFER", "DEBIT"],
+    ColumnValues "channel" in ["MOBILE", "ONLINE", "ATM", "BRANCH", "POS"],
+    ColumnValues "transaction_status" in ["POSTED", "FAILED", "REVERSED"],
+    Completeness "channel" > 0.98,
+    CustomSql "select count(*) from primary where transaction_ts > current_timestamp()" = 0
+]
